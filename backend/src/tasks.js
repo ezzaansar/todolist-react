@@ -11,8 +11,8 @@ router.get("/tasks", async (req, res) => {
   const { status } = req.query ?? {};
 
   try {
-    const sql = status ? `SELECT * FROM tasks where status = "${status}"` : "SELECT * FROM tasks" 
-    const response = await pool.query(sql);
+    const sql = status ? "SELECT * FROM tasks WHERE status = ?" : "SELECT * FROM tasks";
+    const response = status ? await pool.query(sql, [status]) : await pool.query(sql);
     res.json({ tasks: response[0] });
   } catch (err) {
     console.error("Error fetching tasks:", err);
@@ -58,6 +58,47 @@ router.post("/tasks", async (req, res) => {
   } catch (err) {
     console.error("Error inserting task:", err);
     res.status(500).json({ error: "Failed to add task." });
+  }
+});
+
+// Update task by id
+router.put("/tasks/:id", async (req, res) => {
+  const { id } = req.params;
+  const { description, status } = req.body ?? {};
+
+  if (!id) {
+    return res.status(400).json({ error: "Task ID is required." });
+  }
+
+  if (!description && !status) {
+    return res.status(400).json({ error: "Description or status is required." });
+  }
+
+  try {
+    const fields = [];
+    const values = [];
+
+    if (description) {
+      fields.push("description = ?");
+      values.push(description);
+    }
+    if (status) {
+      fields.push("status = ?");
+      values.push(status);
+    }
+    values.push(id);
+
+    const sql = `UPDATE tasks SET ${fields.join(", ")} WHERE id = ?`;
+    const [result] = await pool.query(sql, values);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    res.json({ message: "Task updated successfully", updatedId: id });
+  } catch (err) {
+    console.error("Error updating task:", err);
+    res.status(500).json({ error: "Failed to update task." });
   }
 });
 
